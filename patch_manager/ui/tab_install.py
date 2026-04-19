@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from ..installer import check_disk_space
+
 if TYPE_CHECKING:
     from .app import PatchManagerApp
 
@@ -83,6 +85,18 @@ class TabInstall:
             ):
                 return
             self._run_uninstall(silent=True)
+
+        ok, needed, free = check_disk_space(zip_path, game_path)
+        if not ok:
+            if not messagebox.askyesno(
+                "Espace disque insuffisant",
+                f"Espace estimé nécessaire : {needed:.0f} Mo\n"
+                f"Espace disponible : {free:.0f} Mo\n\n"
+                "L'installation pourrait échouer faute d'espace.\n"
+                "Continuer quand même ?",
+                icon="warning",
+            ):
+                return
 
         self._app.is_processing = True
         self.btn_install.configure(state="disabled")

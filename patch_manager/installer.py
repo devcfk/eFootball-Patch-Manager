@@ -1,10 +1,35 @@
 import datetime
 import os
+import shutil
 from typing import Callable
 
 from .config import ConfigManager
 from .fs_ops import AbstractFileSystemOps
 from .logger import Logger
+
+
+def check_disk_space(archive_path: str, dest_path: str) -> tuple[bool, float, float]:
+    """Estime si l'espace disque est suffisant avant installation.
+
+    Estimation : taille archive × 2,5 (temp extract + copie dest + backup potentiel).
+    Retourne (ok, needed_mb, free_mb).
+    """
+    try:
+        archive_size = os.path.getsize(archive_path)
+    except OSError:
+        return True, 0.0, 0.0  # archive inaccessible, on laisse l'install échouer elle-même
+
+    needed_bytes = int(archive_size * 2.5)
+
+    try:
+        usage = shutil.disk_usage(dest_path if os.path.exists(dest_path) else os.path.splitdrive(dest_path)[0] + "\\")
+        free_bytes = usage.free
+    except OSError:
+        return True, 0.0, 0.0
+
+    needed_mb = needed_bytes / (1024 * 1024)
+    free_mb = free_bytes / (1024 * 1024)
+    return free_bytes >= needed_bytes, needed_mb, free_mb
 
 
 def _stem(path: str) -> str:

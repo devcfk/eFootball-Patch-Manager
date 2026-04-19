@@ -4,6 +4,8 @@ from typing import TYPE_CHECKING
 
 import customtkinter as ctk
 
+from ..installer import check_disk_space
+
 if TYPE_CHECKING:
     from .app import PatchManagerApp
 
@@ -110,6 +112,18 @@ class TabModules:
         install_path = self.txt_install_path.get().strip()
         if not install_path:
             install_path = config_data.get("game_path", "")
+
+        ok, needed, free = check_disk_space(archive, install_path)
+        if not ok:
+            if not messagebox.askyesno(
+                "Espace disque insuffisant",
+                f"Espace estimé nécessaire : {needed:.0f} Mo\n"
+                f"Espace disponible : {free:.0f} Mo\n\n"
+                "L'installation pourrait échouer faute d'espace.\n"
+                "Continuer quand même ?",
+                icon="warning",
+            ):
+                return
 
         self._app.is_processing = True
         self.btn_install_module.configure(state="disabled")
