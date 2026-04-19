@@ -93,6 +93,9 @@ eFootball Patch Manager/
 ## Fonctionnalités / Features
 
 - **Installation de patch principal** (ZIP / 7Z / RAR) avec backup automatique des fichiers remplacés
+- **Mise à jour propre** : si un patch est déjà installé, dialog informatif (équipe, date, modules actifs) avant désinstall + réinstall enchaînées dans un seul flux
+- **Vérification espace disque** : estimation de l'espace nécessaire (archive × 2,5) avant toute installation, alerte si insuffisant
+- **Progression détaillée** : barre de progression affichant "Fichier X / Y — nom_fichier" en temps réel pendant la copie
 - **Modules additionnels** : installation de fichiers complémentaires sur un patch de base, désinstallation sélective par module, chemin d'installation personnalisable
 - **Désinstallation complète** : restauration en ordre inverse (modules puis patch), vérification d'intégrité des backups avant restauration, option de suppression automatique des backups
 - **Vérification d'intégrité** : détection des fichiers backup manquants avant toute désinstallation, avec avertissement détaillé et choix de continuer ou annuler
@@ -127,6 +130,11 @@ La version est définie dans [`patch_manager/version.py`](patch_manager/version.
 ---
 
 ## Changelog
+
+### v1.3.0 — 2026-04-19
+- **Progression détaillée** : barre de progression affichant "Fichier X / Y — nom_fichier" en temps réel pendant la copie
+- **Vérification espace disque** : estimation avant installation (archive × 2,5), alerte si espace insuffisant avec possibilité de forcer
+- **Détection patch existant** : dialog informatif avec équipe, date et modules actifs ; désinstallation + réinstallation enchaînées dans un seul thread sans risque d'installation partielle
 
 ### v1.2.0 — 2026-04-19
 - **Désinstallation sélective de modules** : bouton Désinstaller par module dans l'onglet Modules, sans toucher au patch principal
