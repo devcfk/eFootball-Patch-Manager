@@ -71,7 +71,8 @@ class TabInstall:
 
         config_data = self._app.config_manager.load()
         game_path = config_data.get("game_path", "")
-        zip_path = self.txt_zip.get()
+        zip_path = self.txt_zip.get().strip()
+        team = self.radio_var.get()
 
         if not game_path or not self._app.fs_ops.exists(game_path):
             messagebox.showerror("Erreur", "Le dossier du jeu n'est pas configuré.")
@@ -79,12 +80,30 @@ class TabInstall:
         if not zip_path or not self._app.fs_ops.exists(zip_path):
             messagebox.showerror("Erreur", "Archive introuvable.")
             return
-        if config_data.get("current_patch"):
-            if not messagebox.askyesno(
-                "Attention", "Un patch est déjà installé. Désinstaller avant de continuer ?"
-            ):
+
+        existing = config_data.get("current_patch")
+        do_uninstall_first = False
+        if existing:
+            existing_team = existing.get("team", "?")
+            existing_date = existing.get("install_date", "")[:10]
+            modules = existing.get("modules", [])
+            mod_info = (
+                f"\n{len(modules)} module(s) installé(s) : "
+                + ", ".join(m["name"] for m in modules)
+                if modules else ""
+            )
+            msg = (
+                f"Un patch est déjà installé :\n\n"
+                f"  Équipe : {existing_team}\n"
+                f"  Date d'installation : {existing_date}"
+                f"{mod_info}\n\n"
+                "Pour installer le nouveau patch, l'ancien doit d'abord être désinstallé "
+                "(les fichiers originaux seront restaurés).\n\n"
+                "Procéder à la mise à jour ?"
+            )
+            if not messagebox.askyesno("Mise à jour — patch déjà installé", msg, icon="warning"):
                 return
-            self._run_uninstall(silent=True)
+            do_uninstall_first = True
 
         ok, needed, free = check_disk_space(zip_path, game_path)
         if not ok:
@@ -101,21 +120,16 @@ class TabInstall:
         self._app.is_processing = True
         self.btn_install.configure(state="disabled")
         threading.Thread(
-            target=self._process_install,
-            args=(self.radio_var.get(), zip_path),
+            target=self._process_update,
+            args=(team, zip_path, do_uninstall_first),
             daemon=True,
         ).start()
 
-    def _run_uninstall(self, silent: bool = True) -> None:
+    def _process_update(self, team: str, zip_path: str, uninstall_first: bool) -> None:
         try:
-            self._app.install_service.uninstall(silent=silent)
-        except Exception as e:
-            self._app.logger.log(f"Erreur désinstallation silencieuse : {e}", "ERROR")
-        finally:
-            self._app.after(0, self._app.update_ui)
-
-    def _process_install(self, team: str, zip_path: str) -> None:
-        try:
+            if uninstall_first:
+                self._app.install_service.uninstall(silent=True)
+                self._app.after(0, self._app.update_ui)
             self._app.install_service.install(team, zip_path)
             self._app.after(0, lambda: messagebox.showinfo("Succès", "Patch installé avec succès."))
         except Exception as e:
