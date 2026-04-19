@@ -48,9 +48,8 @@ def _copy_tree(fs: AbstractFileSystemOps, all_files: list, dest_root: str,
 
         fs.copy2(src_file, dest_file)
 
-        if i % 50 == 0:
-            prog = progress_start + (i / file_count) * (0.95 - progress_start)
-            progress_cb(prog, f"Copie des fichiers ({i}/{file_count})...")
+        prog = progress_start + ((i + 1) / file_count) * (0.95 - progress_start)
+        progress_cb(prog, f"Fichier {i + 1} / {file_count} — {os.path.basename(src_file)}")
 
 
 class InstallService:
