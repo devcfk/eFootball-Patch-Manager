@@ -13,6 +13,10 @@ APPDATA_DIR_TEST = _p(os.environ.get("APPDATA", ""), "eFootball_PatchManager_Tes
 CONFIG_FILE_TEST = _p(APPDATA_DIR_TEST, "config.json")
 LOG_FILE_TEST = _p(APPDATA_DIR_TEST, "patch_manager.log")
 
+# Rotation des logs
+LOG_MAX_SIZE_MB   = 3    # Taille max avant rotation (Mo)
+LOG_MAX_SESSIONS  = 10   # Nombre de sessions à conserver après rotation
+
 DEFAULT_CONFIG = {
     "game_path": "",
     "backup_root": _p(APPDATA_DIR, "backups"),

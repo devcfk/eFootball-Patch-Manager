@@ -1,0 +1,18 @@
+# Environnement virtuel
+.venv/
+
+# Cache Python
+__pycache__/
+*.py[cod]
+
+# Cache pytest
+.pytest_cache/
+
+# IDE / outils locaux
+.claude/
+.vscode/
+.idea/
+
+# Données runtime
+*.log
+*.log.bak
