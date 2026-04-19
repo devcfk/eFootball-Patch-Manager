@@ -13,6 +13,11 @@ __pycache__/
 .vscode/
 .idea/
 
+# Build / distribution
+build/
+dist/
+*.spec.bak
+
 # Données runtime
 *.log
 *.log.bak
