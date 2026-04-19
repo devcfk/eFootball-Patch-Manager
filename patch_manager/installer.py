@@ -202,6 +202,42 @@ class InstallService:
                 self._fs.rmtree(temp_dir, ignore_errors=True)
 
     # ------------------------------------------------------------------
+    # Désinstallation d'un module seul
+    # ------------------------------------------------------------------
+    def uninstall_module(self, module_index: int, delete_backup: bool = False) -> None:
+        config_data = self._cfg.load()
+        patch = config_data.get("current_patch")
+        if not patch:
+            raise Exception("Aucun patch de base installé.")
+
+        modules = patch.get("modules", [])
+        if module_index < 0 or module_index >= len(modules):
+            raise Exception(f"Module introuvable (index {module_index}).")
+
+        mod = modules[module_index]
+        game_path = config_data.get("game_path", "")
+        dest_root = mod.get("install_path", game_path)
+
+        self._log.log_separator(f"Désinstallation module — {mod['name']}")
+        self._log.log(f"Suppression du module « {mod['name']} »...")
+        self._progress(0.1, f"Suppression module : {mod['name']}...")
+
+        self._remove_layer(mod, dest_root)
+        self._progress(0.9, "Sauvegarde de la configuration...")
+
+        if delete_backup:
+            self._delete_backup_folder(mod["backup_folder"])
+
+        patch["modules"].pop(module_index)
+        # Réindexe les install_order restants
+        for i, m in enumerate(patch["modules"]):
+            m["install_order"] = i
+
+        self._cfg.save(config_data)
+        self._progress(1.0, "Terminé.")
+        self._log.log(f"Module « {mod['name']} » désinstallé.", "OK")
+
+    # ------------------------------------------------------------------
     # Désinstallation (patch + tous les modules, ordre inverse)
     # ------------------------------------------------------------------
     def uninstall(self, silent: bool = False, delete_backups: bool = False) -> None:

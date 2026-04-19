@@ -1,5 +1,5 @@
 import threading
-from tkinter import filedialog, messagebox
+from tkinter import BooleanVar, filedialog, messagebox
 from typing import TYPE_CHECKING
 
 import customtkinter as ctk
@@ -74,6 +74,7 @@ class TabModules:
             self._modules_frame, text="Aucun module installé.", text_color="gray60"
         )
         self._no_module_label.pack(anchor="w", padx=10, pady=5)
+        self._delete_backup_vars: list[BooleanVar] = []
 
     # ------------------------------------------------------------------
 
@@ -136,6 +137,35 @@ class TabModules:
             self._app.after(0, lambda: self.btn_install_module.configure(state="normal"))
             self._app.after(0, self._app.update_ui)
 
+    def _confirm_uninstall_module(self, idx: int) -> None:
+        if self._app.is_processing:
+            return
+        delete_backup = self._delete_backup_vars[idx].get()
+        if not messagebox.askyesno(
+            "Confirmation",
+            "Voulez-vous vraiment désinstaller ce module et restaurer les fichiers ?",
+        ):
+            return
+        self._app.is_processing = True
+        threading.Thread(
+            target=self._process_uninstall_module,
+            args=(idx, delete_backup),
+            daemon=True,
+        ).start()
+
+    def _process_uninstall_module(self, idx: int, delete_backup: bool) -> None:
+        try:
+            self._app.install_service.uninstall_module(idx, delete_backup)
+            self._app.after(0, lambda: messagebox.showinfo("Succès", "Module désinstallé avec succès."))
+        except Exception as e:
+            msg = str(e)
+            self._app.logger.log(f"Erreur désinstallation module : {msg}", "ERROR")
+            self._app.set_progress(0.0, "Erreur.")
+            self._app.after(0, lambda m=msg: messagebox.showerror("Erreur", f"La désinstallation a échoué.\n{m}"))
+        finally:
+            self._app.is_processing = False
+            self._app.after(0, self._app.update_ui)
+
     def update(self, patch: dict | None) -> None:
         """Rafraîchit la liste des modules et l'état du bouton."""
         # Active le bouton seulement si un patch de base est présent
@@ -146,27 +176,54 @@ class TabModules:
             widget.destroy()
 
         modules = patch.get("modules", []) if patch else []
+        self._delete_backup_vars = []
+
         if not modules:
             ctk.CTkLabel(
                 self._modules_frame, text="Aucun module installé.", text_color="gray60"
             ).pack(anchor="w", padx=10, pady=5)
             return
 
-        for mod in modules:
-            row = ctk.CTkFrame(self._modules_frame, fg_color=("gray85", "gray20"), corner_radius=6)
-            row.pack(fill="x", padx=5, pady=4)
-            ctk.CTkLabel(
-                row,
-                text=f"📦  {mod['name']}",
-                font=ctk.CTkFont(weight="bold"),
-            ).pack(anchor="w", padx=10, pady=(6, 2))
-            ctk.CTkLabel(
-                row,
-                text=(
-                    f"Installé le : {mod['install_date'][:10]}   |   "
-                    f"{mod['file_count']} fichiers   |   "
-                    f"Dossier : {mod['install_path']}"
-                ),
-                text_color="gray60",
-                font=ctk.CTkFont(size=11),
-            ).pack(anchor="w", padx=10, pady=(0, 6))
+        for idx, mod in enumerate(modules):
+            self._build_module_card(idx, mod)
+
+    def _build_module_card(self, idx: int, mod: dict) -> None:
+        card = ctk.CTkFrame(self._modules_frame, fg_color=("gray85", "gray20"), corner_radius=6)
+        card.pack(fill="x", padx=5, pady=4)
+
+        # Ligne titre + bouton désinstaller
+        top = ctk.CTkFrame(card, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(6, 2))
+        ctk.CTkLabel(
+            top,
+            text=f"📦  {mod['name']}",
+            font=ctk.CTkFont(weight="bold"),
+        ).pack(side="left")
+        ctk.CTkButton(
+            top, text="Désinstaller", width=100, height=24,
+            fg_color="#dc3545", hover_color="#c82333",
+            command=lambda i=idx: self._confirm_uninstall_module(i),
+        ).pack(side="right")
+
+        # Détails
+        ctk.CTkLabel(
+            card,
+            text=(
+                f"Installé le : {mod['install_date'][:10]}   |   "
+                f"{mod['file_count']} fichiers   |   "
+                f"Dossier : {mod['install_path']}"
+            ),
+            text_color="gray60",
+            font=ctk.CTkFont(size=11),
+        ).pack(anchor="w", padx=10, pady=(0, 4))
+
+        # Checkbox supprimer backup — var stockée dans la liste indexée
+        var = BooleanVar(value=True)
+        self._delete_backup_vars.append(var)
+        ctk.CTkCheckBox(
+            card,
+            text="Supprimer le backup après restauration",
+            variable=var,
+            font=ctk.CTkFont(size=11),
+            checkbox_width=16, checkbox_height=16,
+        ).pack(anchor="w", padx=10, pady=(0, 6))
