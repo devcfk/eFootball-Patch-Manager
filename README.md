@@ -93,12 +93,13 @@ eFootball Patch Manager/
 ## Fonctionnalités / Features
 
 - **Installation de patch principal** (ZIP / 7Z / RAR) avec backup automatique des fichiers remplacés
-- **Modules additionnels** : installation de fichiers complémentaires sur un patch de base, avec chemin d'installation personnalisable par module
-- **Désinstallation complète** : restauration des fichiers originaux en ordre inverse (modules puis patch), avec option de suppression automatique des backups
-- **Historique** : consultation des patches précédemment désinstallés avec leurs détails
-- **Journal colorisé** : niveaux OK / ERROR / WARNING / INFO différenciés par couleur, filtres Tout / Résumé / Erreurs, séparateurs de session
-- **Mode test** : simulation complète sans toucher au disque
-- **Séparateurs de chemin** : tous les chemins sont normalisés en `/` en interne, affichés en `\` dans l'interface Windows
+- **Modules additionnels** : installation de fichiers complémentaires sur un patch de base, désinstallation sélective par module, chemin d'installation personnalisable
+- **Désinstallation complète** : restauration en ordre inverse (modules puis patch), vérification d'intégrité des backups avant restauration, option de suppression automatique des backups
+- **Vérification d'intégrité** : détection des fichiers backup manquants avant toute désinstallation, avec avertissement détaillé et choix de continuer ou annuler
+- **Historique** : consultation des patches précédemment désinstallés avec leurs détails et chemin backup
+- **Journal colorisé** : niveaux OK / ERROR / WARNING / INFO colorés, filtres Tout / Résumé / Erreurs, séparateurs de session, rotation automatique au-delà de 3 Mo
+- **Mode test** : simulation complète sans toucher au disque, données isolées dans un répertoire AppData séparé
+- **Séparateurs de chemin** : tous les chemins normalisés en `/` en interne, affichés en `\` dans l'interface Windows
 
 ---
 
@@ -126,6 +127,12 @@ La version est définie dans [`patch_manager/version.py`](patch_manager/version.
 ---
 
 ## Changelog
+
+### v1.2.0 — 2026-04-19
+- **Désinstallation sélective de modules** : bouton Désinstaller par module dans l'onglet Modules, sans toucher au patch principal
+- **Vérification d'intégrité avant désinstallation** : détection des backups manquants avec avertissement détaillé (patch complet et modules individuels)
+- **Rotation automatique des logs** : archivage dans `.log.bak` au-delà de 3 Mo, conservation des 10 dernières sessions
+- `[BACKUP MANQUANT]` loggé en WARNING pour chaque fichier non restaurable
 
 ### v1.1.0 — 2026-04-19
 - Onglet **Modules** : installation de modules additionnels sur un patch de base, chemin d'installation personnalisable, nom déduit du fichier archive

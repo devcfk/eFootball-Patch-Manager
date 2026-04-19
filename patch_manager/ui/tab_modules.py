@@ -140,6 +140,27 @@ class TabModules:
     def _confirm_uninstall_module(self, idx: int) -> None:
         if self._app.is_processing:
             return
+
+        config_data = self._app.config_manager.load()
+        patch = config_data.get("current_patch")
+        if not patch or idx >= len(patch.get("modules", [])):
+            return
+
+        mod = patch["modules"][idx]
+        missing = self._app.install_service.verify_module_before_uninstall(mod)
+        if missing:
+            lines = [f"  • {f}" for f in missing[:5]]
+            if len(missing) > 5:
+                lines.append(f"  ... et {len(missing) - 5} autre(s)")
+            warn_msg = (
+                "Certains fichiers backup de ce module sont introuvables :\n\n"
+                + "\n".join(lines)
+                + "\n\nLes fichiers originaux correspondants ne pourront pas être restaurés.\n"
+                "Continuer quand même ?"
+            )
+            if not messagebox.askyesno("Avertissement — backup incomplet", warn_msg, icon="warning"):
+                return
+
         delete_backup = self._delete_backup_vars[idx].get()
         if not messagebox.askyesno(
             "Confirmation",

@@ -222,6 +222,9 @@ class InstallService:
         self._log.log(f"Suppression du module « {mod['name']} »...")
         self._progress(0.1, f"Suppression module : {mod['name']}...")
 
+        for rel in self._missing_backups(mod):
+            self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
+
         self._remove_layer(mod, dest_root)
         self._progress(0.9, "Sauvegarde de la configuration...")
 
@@ -259,6 +262,8 @@ class InstallService:
             self._log.log(f"Suppression du module « {mod['name']} »...")
             self._progress(step / total_steps * 0.9, f"Suppression module : {mod['name']}...")
             dest_root = mod.get("install_path", game_path)
+            for rel in self._missing_backups(mod):
+                self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
             self._remove_layer(mod, dest_root)
             if delete_backups:
                 self._delete_backup_folder(mod["backup_folder"])
@@ -267,6 +272,8 @@ class InstallService:
         step += 1
         self._log.log(f"Désinstallation du patch {patch['team']}...")
         self._progress(step / total_steps * 0.9, "Restauration du patch principal...")
+        for rel in self._missing_backups(patch):
+            self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
         self._remove_layer(patch, game_path)
         if delete_backups:
             self._delete_backup_folder(patch["backup_folder"])
@@ -278,6 +285,39 @@ class InstallService:
 
         self._progress(1.0, "Désinstallation terminée.")
         self._log.log("Désinstallation terminée avec succès.", "OK")
+
+    # ------------------------------------------------------------------
+    # Vérification d'intégrité
+    # ------------------------------------------------------------------
+    def _missing_backups(self, layer: dict) -> list[str]:
+        """Retourne les rel_path de replaced_files dont le backup est absent."""
+        backup_path = layer.get("backup_folder", "")
+        missing = []
+        for rel in layer.get("replaced_files", []):
+            bkp = os.path.join(backup_path, rel).replace("\\", "/")
+            if not self._fs.exists(bkp):
+                missing.append(rel)
+        return missing
+
+    def verify_before_uninstall(self, patch: dict) -> dict:
+        """Retourne un dict {nom_couche: [fichiers manquants]} pour patch + modules.
+        Dict vide = intégrité OK."""
+        issues: dict[str, list[str]] = {}
+
+        missing = self._missing_backups(patch)
+        if missing:
+            issues[f"Patch — {patch['team']}"] = missing
+
+        for mod in patch.get("modules", []):
+            missing = self._missing_backups(mod)
+            if missing:
+                issues[f"Module — {mod['name']}"] = missing
+
+        return issues
+
+    def verify_module_before_uninstall(self, mod: dict) -> list[str]:
+        """Retourne les fichiers backup manquants d'un module seul."""
+        return self._missing_backups(mod)
 
     def _delete_backup_folder(self, backup_folder: str) -> None:
         if self._fs.exists(backup_folder):
