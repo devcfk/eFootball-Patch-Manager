@@ -7,6 +7,7 @@ from ..installer import InstallService
 from ..logger import Logger
 from ..version import __version__
 from .tab_accueil import TabAccueil
+from .tab_history import TabHistory
 from .tab_install import TabInstall
 from .tab_log import TabLog
 from .tab_modules import TabModules
@@ -114,6 +115,7 @@ class PatchManagerApp(ctk.CTk):
         tab_ins = self.tabview.add("Installer")
         tab_mod = self.tabview.add("Modules")
         tab_uni = self.tabview.add("Désinstaller")
+        tab_his = self.tabview.add("Historique")
         tab_par = self.tabview.add("Paramètres")
         tab_log = self.tabview.add("Journal")
 
@@ -121,6 +123,7 @@ class PatchManagerApp(ctk.CTk):
         self._tab_install = TabInstall(tab_ins, self)
         self._tab_modules = TabModules(tab_mod, self)
         self._tab_uninst = TabUninst(tab_uni, self)
+        self._tab_history = TabHistory(tab_his, self)
         self._tab_param = TabParam(tab_par, self)
         self._tab_log = TabLog(tab_log, self._log_file)
 
@@ -135,6 +138,7 @@ class PatchManagerApp(ctk.CTk):
         self._tab_accueil.update(patch)
         self._tab_uninst.update(patch)
         self._tab_modules.update(patch)
+        self._tab_history.update(config_data.get("history", []))
 
         if patch:
             fg = "#007bff" if patch["team"] == "evomod" else "#fd7e14"

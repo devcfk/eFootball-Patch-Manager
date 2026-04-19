@@ -1,10 +1,35 @@
 import datetime
 import os
+import shutil
 from typing import Callable
 
 from .config import ConfigManager
 from .fs_ops import AbstractFileSystemOps
 from .logger import Logger
+
+
+def check_disk_space(archive_path: str, dest_path: str) -> tuple[bool, float, float]:
+    """Estime si l'espace disque est suffisant avant installation.
+
+    Estimation : taille archive × 2,5 (temp extract + copie dest + backup potentiel).
+    Retourne (ok, needed_mb, free_mb).
+    """
+    try:
+        archive_size = os.path.getsize(archive_path)
+    except OSError:
+        return True, 0.0, 0.0  # archive inaccessible, on laisse l'install échouer elle-même
+
+    needed_bytes = int(archive_size * 2.5)
+
+    try:
+        usage = shutil.disk_usage(dest_path if os.path.exists(dest_path) else os.path.splitdrive(dest_path)[0] + "\\")
+        free_bytes = usage.free
+    except OSError:
+        return True, 0.0, 0.0
+
+    needed_mb = needed_bytes / (1024 * 1024)
+    free_mb = free_bytes / (1024 * 1024)
+    return free_bytes >= needed_bytes, needed_mb, free_mb
 
 
 def _stem(path: str) -> str:
@@ -48,9 +73,8 @@ def _copy_tree(fs: AbstractFileSystemOps, all_files: list, dest_root: str,
 
         fs.copy2(src_file, dest_file)
 
-        if i % 50 == 0:
-            prog = progress_start + (i / file_count) * (0.95 - progress_start)
-            progress_cb(prog, f"Copie des fichiers ({i}/{file_count})...")
+        prog = progress_start + ((i + 1) / file_count) * (0.95 - progress_start)
+        progress_cb(prog, f"Fichier {i + 1} / {file_count} — {os.path.basename(src_file)}")
 
 
 class InstallService:
@@ -202,6 +226,45 @@ class InstallService:
                 self._fs.rmtree(temp_dir, ignore_errors=True)
 
     # ------------------------------------------------------------------
+    # Désinstallation d'un module seul
+    # ------------------------------------------------------------------
+    def uninstall_module(self, module_index: int, delete_backup: bool = False) -> None:
+        config_data = self._cfg.load()
+        patch = config_data.get("current_patch")
+        if not patch:
+            raise Exception("Aucun patch de base installé.")
+
+        modules = patch.get("modules", [])
+        if module_index < 0 or module_index >= len(modules):
+            raise Exception(f"Module introuvable (index {module_index}).")
+
+        mod = modules[module_index]
+        game_path = config_data.get("game_path", "")
+        dest_root = mod.get("install_path", game_path)
+
+        self._log.log_separator(f"Désinstallation module — {mod['name']}")
+        self._log.log(f"Suppression du module « {mod['name']} »...")
+        self._progress(0.1, f"Suppression module : {mod['name']}...")
+
+        for rel in self._missing_backups(mod):
+            self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
+
+        self._remove_layer(mod, dest_root)
+        self._progress(0.9, "Sauvegarde de la configuration...")
+
+        if delete_backup:
+            self._delete_backup_folder(mod["backup_folder"])
+
+        patch["modules"].pop(module_index)
+        # Réindexe les install_order restants
+        for i, m in enumerate(patch["modules"]):
+            m["install_order"] = i
+
+        self._cfg.save(config_data)
+        self._progress(1.0, "Terminé.")
+        self._log.log(f"Module « {mod['name']} » désinstallé.", "OK")
+
+    # ------------------------------------------------------------------
     # Désinstallation (patch + tous les modules, ordre inverse)
     # ------------------------------------------------------------------
     def uninstall(self, silent: bool = False, delete_backups: bool = False) -> None:
@@ -223,6 +286,8 @@ class InstallService:
             self._log.log(f"Suppression du module « {mod['name']} »...")
             self._progress(step / total_steps * 0.9, f"Suppression module : {mod['name']}...")
             dest_root = mod.get("install_path", game_path)
+            for rel in self._missing_backups(mod):
+                self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
             self._remove_layer(mod, dest_root)
             if delete_backups:
                 self._delete_backup_folder(mod["backup_folder"])
@@ -231,6 +296,8 @@ class InstallService:
         step += 1
         self._log.log(f"Désinstallation du patch {patch['team']}...")
         self._progress(step / total_steps * 0.9, "Restauration du patch principal...")
+        for rel in self._missing_backups(patch):
+            self._log.log(f"  [BACKUP MANQUANT]  {rel}", "WARNING")
         self._remove_layer(patch, game_path)
         if delete_backups:
             self._delete_backup_folder(patch["backup_folder"])
@@ -242,6 +309,39 @@ class InstallService:
 
         self._progress(1.0, "Désinstallation terminée.")
         self._log.log("Désinstallation terminée avec succès.", "OK")
+
+    # ------------------------------------------------------------------
+    # Vérification d'intégrité
+    # ------------------------------------------------------------------
+    def _missing_backups(self, layer: dict) -> list[str]:
+        """Retourne les rel_path de replaced_files dont le backup est absent."""
+        backup_path = layer.get("backup_folder", "")
+        missing = []
+        for rel in layer.get("replaced_files", []):
+            bkp = os.path.join(backup_path, rel).replace("\\", "/")
+            if not self._fs.exists(bkp):
+                missing.append(rel)
+        return missing
+
+    def verify_before_uninstall(self, patch: dict) -> dict:
+        """Retourne un dict {nom_couche: [fichiers manquants]} pour patch + modules.
+        Dict vide = intégrité OK."""
+        issues: dict[str, list[str]] = {}
+
+        missing = self._missing_backups(patch)
+        if missing:
+            issues[f"Patch — {patch['team']}"] = missing
+
+        for mod in patch.get("modules", []):
+            missing = self._missing_backups(mod)
+            if missing:
+                issues[f"Module — {mod['name']}"] = missing
+
+        return issues
+
+    def verify_module_before_uninstall(self, mod: dict) -> list[str]:
+        """Retourne les fichiers backup manquants d'un module seul."""
+        return self._missing_backups(mod)
 
     def _delete_backup_folder(self, backup_folder: str) -> None:
         if self._fs.exists(backup_folder):

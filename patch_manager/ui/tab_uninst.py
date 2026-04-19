@@ -89,6 +89,31 @@ class TabUninst:
     def _start_uninstall(self) -> None:
         if self._app.is_processing:
             return
+
+        config_data = self._app.config_manager.load()
+        patch = config_data.get("current_patch")
+        if not patch:
+            return
+
+        # Vérification d'intégrité
+        issues = self._app.install_service.verify_before_uninstall(patch)
+        if issues:
+            lines = []
+            for layer_name, missing in issues.items():
+                lines.append(f"{layer_name} :")
+                for f in missing[:5]:
+                    lines.append(f"  • {f}")
+                if len(missing) > 5:
+                    lines.append(f"  ... et {len(missing) - 5} autre(s)")
+            warn_msg = (
+                "Certains fichiers backup sont introuvables :\n\n"
+                + "\n".join(lines)
+                + "\n\nLes fichiers originaux correspondants ne pourront pas être restaurés.\n"
+                "Continuer quand même ?"
+            )
+            if not messagebox.askyesno("Avertissement — backup incomplet", warn_msg, icon="warning"):
+                return
+
         if messagebox.askyesno(
             "Confirmation",
             "Voulez-vous vraiment désinstaller le patch et restaurer les fichiers originaux ?",
